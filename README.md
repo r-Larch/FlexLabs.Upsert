@@ -1,3 +1,88 @@
+
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/r-Larch/FlexLabs.Upsert/ci.yml)](https://github.com/r-Larch/FlexLabs.Upsert/actions) [![NuGet Version](https://img.shields.io/nuget/v/LarchSys.FlexLabs.Upsert)](https://www.nuget.org/packages/LarchSys.FlexLabs.Upsert)
+
+**Install Nuget**
+
+```bash
+> dotnet add package LarchSys.FlexLabs.Upsert --prerelease
+```
+
+# This is a fork of `artiomchi/FlexLabs.Upsert`
+
+This fork provides support for **Owned** entities and **Owned JSON** entities.
+
+**Owned Entities**
+```c#
+using var dbContext = new TestDbContext(_fixture.DataContextOptions);
+
+var newParent = new Parent
+{
+    ID = 1,
+    Child = new Child
+    {
+        ChildName = "Someone else",
+        Age = 10,
+        SubChild = new SubChild
+        {
+            SubChildName = "SubChild foobar",
+            Age = 10,
+        }
+    },
+};
+
+dbContext.Parents.Upsert(newParent)
+    .On(p => p.ID)
+    .WhenMatched((a, b) => new Parent
+    {
+        Counter = b.Counter + 1,
+        Child = new Child
+        {
+            SubChild = b.Child.SubChild, // nested owned direct mapping - should expand to all columns.
+        }
+    })
+    .Run();
+```
+
+**Owned JSON Entities**
+```c#
+using var dbContext = new TestDbContext(_fixture.DataContextOptions);
+
+var company = new CompanyOwnedJson
+{
+    Id = 1,
+    Name = "Company 1",
+    Meta = new CompanyMeta // .OwnsOne(_ => _.Meta, _ => _.ToJson()...)
+    {
+        Required = "required-value",
+        JsonOverride = "col with [JsonPropertyName]",
+        Nested = new CompanyNestedMeta
+        {
+            Title = "I'm a nested json",
+        },
+        Properties = [
+            new CompanyMetaValue {
+                Key = "foo",
+                Value = "bar",
+            },
+            new CompanyMetaValue {
+                Key = "cat",
+                Value = "dog",
+            }
+        ],
+    }
+};
+
+dbContext.CompanyOwnedJson.Upsert(company)
+    .On(p => p.Id)
+    .WhenMatched((a, b) => new CompanyOwnedJson
+    {
+        Name = b.Name,
+        Meta = b.Meta, // assigning a JSON is supported.
+    })
+    .Run();
+```
+
+
 FlexLabs.Upsert
 ==========
 
