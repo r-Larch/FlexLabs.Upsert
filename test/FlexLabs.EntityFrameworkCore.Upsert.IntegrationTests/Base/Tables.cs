@@ -229,7 +229,7 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.IntegrationTests.Base
     
     public struct ComplexValue
     {
-        public int Value1 { get; set; }
+        [Column("Value1_Override")] public int Value1 { get; set; }
         public int Value2 { get; set; }
         public SubComplexValue Sub { get; set; }
     }
@@ -237,5 +237,6 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.IntegrationTests.Base
     public struct SubComplexValue
     {
         public int Innermost { get; set; }
+        [NotMapped] public int UnmappedProp { get; set; }
     }
 }

@@ -11,13 +11,16 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.Internal;
 
 internal sealed class RelationalTable : RelationalTableBase {
     private readonly RunnerQueryOptions _queryOptions;
-
+    private readonly StoreObjectIdentifier _tableIdentifier;
 
     internal RelationalTable(IEntityType entityType, string tableName, RunnerQueryOptions queryOptions)
     {
         _queryOptions = queryOptions;
         EntityType = entityType;
         TableName = tableName;
+        
+        _tableIdentifier = StoreObjectIdentifier.Create(entityType, StoreObjectType.Table) ??
+            throw new NotSupportedException($"Unable to create StoreObjectIdentifier for {entityType.Name}");
 
         var columns = GetColumns(entityType)
             .Concat(GetComplexColumns(entityType))
@@ -45,16 +48,23 @@ internal sealed class RelationalTable : RelationalTableBase {
             .GetProperties()
             .Where(ValidProperty);
 
-        foreach (var property in properties) {
+        foreach (var property in properties) 
+        {
+            var columnName = GetColumnName(property);
+            if (columnName is null)
+            {
+                throw new NotSupportedException($"Column name not found for property {property.Name} on {property.DeclaringType.Name}.");
+            }
+            
             yield return new RelationalColumn(
                 Property: property,
-                ColumnName: property.GetColumnName(),
+                ColumnName: columnName,
                 Owned: Owned.None
             );
         }
     }
     
-    private IEnumerable<IColumnBase> GetComplexColumns(ITypeBase entityType, string? columnPath=null, string? path=null)
+    private IEnumerable<IColumnBase> GetComplexColumns(ITypeBase entityType, string? path=null)
     {
         var complexProperties = entityType
             .GetComplexProperties();
@@ -68,7 +78,6 @@ internal sealed class RelationalTable : RelationalTableBase {
                 Path: path
             );
             
-            var columnPrefix = $"{columnPath}{complexProperty.Name}_";
             var pathPrefix = $"{path}.{complexProperty.Name}";
             
             var inlineProperties = complexProperty.ComplexType
@@ -76,15 +85,21 @@ internal sealed class RelationalTable : RelationalTableBase {
                 .Where(ValidProperty);
             foreach (var inlineProperty in inlineProperties)
             {
+                var columnName = GetColumnName(inlineProperty);
+                if (columnName is null)
+                {
+                    throw new NotSupportedException($"Column name not found for complex property {inlineProperty.Name} on {entityType.Name}.");
+                }
+                
                 yield return new RelationalColumn(
                     Property: inlineProperty,
-                    ColumnName: $"{columnPrefix}{inlineProperty.GetColumnName()}",
+                    ColumnName: columnName,
                     Owned: Owned.Inline,
                     Path: pathPrefix
                 );
             }
 
-            foreach (var nestedComplex in GetComplexColumns(complexProperty.ComplexType, columnPrefix, pathPrefix))
+            foreach (var nestedComplex in GetComplexColumns(complexProperty.ComplexType, pathPrefix))
             {
                 yield return nestedComplex;
             }
@@ -142,15 +157,7 @@ internal sealed class RelationalTable : RelationalTableBase {
                     .Where(ValidProperty);
 
                 foreach (var property in properties) {
-                    var columnName = (string?) property.FindAnnotation(RelationalAnnotationNames.ColumnName)?.Value;
-                    if (columnName is null) {
-                        var table = StoreObjectIdentifier.Create(property.DeclaringType, StoreObjectType.Table);
-                        columnName = table switch {
-                            null => null,
-                            _ => property.GetDefaultColumnName(table.Value),
-                        };
-                    }
-
+                    var columnName = GetColumnName(property);
                     if (columnName is null) {
                         throw new NotSupportedException($"Unsupported Owned Entity '{navigation.Name}'. Column name not found for {property.Name}.");
                     }
@@ -171,6 +178,10 @@ internal sealed class RelationalTable : RelationalTableBase {
         }
     }
 
+    private string? GetColumnName(IReadOnlyProperty property)
+    {
+        return property.GetColumnName(_tableIdentifier);
+    }
 
     private bool ValidProperty(IProperty property)
     {
