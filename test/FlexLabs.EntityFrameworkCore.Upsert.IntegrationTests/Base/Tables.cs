@@ -219,4 +219,23 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.IntegrationTests.Base
         public string Key { get; set; }
         public string Value { get; set; }
     }
+    
+    public record ComplexOwner
+    {
+        [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
+        public int ID { get; set; }
+        public ComplexValue Complex { get; set; }
+    }
+    
+    public struct ComplexValue
+    {
+        public int Value1 { get; set; }
+        public int Value2 { get; set; }
+        public SubComplexValue Sub { get; set; }
+    }
+    
+    public struct SubComplexValue
+    {
+        public int Innermost { get; set; }
+    }
 }

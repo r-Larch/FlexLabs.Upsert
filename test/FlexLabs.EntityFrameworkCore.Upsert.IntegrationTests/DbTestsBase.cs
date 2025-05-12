@@ -115,6 +115,7 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.Tests.EF
             Reset(dbContext, e => e.ComputedColumns);
             Reset(dbContext, e => e.Parents);
             Reset(dbContext, e => e.CompanyOwnedJson);
+            Reset(dbContext, e => e.ComplexOwners);
 
             dbContext.Add(_dbCountry);
             dbContext.Add(_dbVisitOld);
@@ -126,6 +127,7 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.Tests.EF
             dbContext.Add(_computedColumn);
             dbContext.Add(new GeneratedAlwaysAsIdentity());
             dbContext.Add(_dbParent);
+            dbContext.Add(_dbComplexOwner);
             dbContext.SaveChanges();
 
             GeneratedAlwaysAsIdentity_NextId = dbContext.GeneratedAlwaysAsIdentity.Max(e => e.ID) + 1;

@@ -64,6 +64,11 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.IntegrationTests.Base
                 _.OwnsMany(_ => _.Properties, _ => _.ToJson());
             });
 
+            modelBuilder.Entity<ComplexOwner>()
+                .ComplexProperty(
+                    owner => owner.Complex,
+                    builder => builder.ComplexProperty(complex => complex.Sub)); 
+
             if (dbProvider.Name != "Pomelo.EntityFrameworkCore.MySql") // Can't have a default value on TEXT columns in MySql
             {
                 modelBuilder.Entity<NullableRequired>().Property(e => e.Text).HasDefaultValue("B");
@@ -107,5 +112,6 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.IntegrationTests.Base
         public DbSet<ComputedColumn> ComputedColumns { get; set; }
         public DbSet<Parent> Parents { get; set; }
         public DbSet<CompanyOwnedJson> CompanyOwnedJson { get; set; }
+        public DbSet<ComplexOwner> ComplexOwners { get; set; }
     }
 }

@@ -20,6 +20,7 @@ internal sealed class RelationalTable : RelationalTableBase {
         TableName = tableName;
 
         var columns = GetColumns(entityType)
+            .Concat(GetComplexColumns(entityType))
             .Concat(GetOwnedColumns(entityType));
 
         AddColumnRange(columns);
@@ -52,7 +53,43 @@ internal sealed class RelationalTable : RelationalTableBase {
             );
         }
     }
+    
+    private IEnumerable<IColumnBase> GetComplexColumns(ITypeBase entityType, string? columnPath=null, string? path=null)
+    {
+        var complexProperties = entityType
+            .GetComplexProperties();
 
+        foreach (var complexProperty in complexProperties) {
+            // create a shadow property for FindColumn()
+            yield return new OwnerColumn(
+                Name: complexProperty.Name,
+                ColumnName: null!,
+                Owned: Owned.InlineOwner,
+                Path: path
+            );
+            
+            var columnPrefix = $"{columnPath}{complexProperty.Name}_";
+            var pathPrefix = $"{path}.{complexProperty.Name}";
+            
+            var inlineProperties = complexProperty.ComplexType
+                .GetProperties()
+                .Where(ValidProperty);
+            foreach (var inlineProperty in inlineProperties)
+            {
+                yield return new RelationalColumn(
+                    Property: inlineProperty,
+                    ColumnName: $"{columnPrefix}{inlineProperty.GetColumnName()}",
+                    Owned: Owned.Inline,
+                    Path: pathPrefix
+                );
+            }
+
+            foreach (var nestedComplex in GetComplexColumns(complexProperty.ComplexType, columnPrefix, pathPrefix))
+            {
+                yield return nestedComplex;
+            }
+        }
+    }
 
     private IEnumerable<IColumnBase> GetOwnedColumns(IEntityType entityType, string? path = null, Func<object, object?>? getter = null)
     {
