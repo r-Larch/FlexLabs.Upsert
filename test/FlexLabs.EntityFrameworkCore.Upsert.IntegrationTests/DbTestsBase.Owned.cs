@@ -39,6 +39,21 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.Tests.EF
             },
         };
 
+        readonly ParentComplexJson _dbParentComplexJson = new()
+        {
+            ID = 1,
+            Child = new Child
+            {
+                ChildName = "Child",
+                Age = 1,
+                SubChild = new SubChild
+                {
+                    SubChildName = "SubChild",
+                    Age = 1,
+                }
+            },
+        };
+
 
         #region Owned Entities
 
@@ -786,6 +801,242 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.Tests.EF
                 .Run();
 
             dbContext.ParentComplexes.OrderBy(p => p.ID).Should().SatisfyRespectively(
+                parent =>
+                {
+                    parent.ID.Should().Be(newParent.ID);
+                    parent.Child?.ChildName.Should().NotBe(newParent.Child.ChildName);
+                    parent.Child?.SubChild?.SubChildName.Should().NotBe(newParent.Child.SubChild.SubChildName);
+                    parent.Counter.Should().NotBe(newParent.Counter);
+                    parent.Counter.Should().Be(0);
+                });
+        }
+
+        #endregion
+
+
+        #region Complex Properties + Json inline
+
+        [Fact]
+        public virtual void Upsert_Complex_Property_With_Json()
+        {
+            Assert.SkipWhen(_fixture.DbDriver is DbDriver.InMemory, "db doesn't support sql complex properties");
+
+            ResetDb();
+            using var dbContext = new TestDbContext(_fixture.DataContextOptions);
+
+            var newParent = new ParentComplexJson
+            {
+                ID = 1,
+                Child = new Child
+                {
+                    ChildName = "Someone else",
+                    SubChild = new SubChild
+                    {
+                        SubChildName = "SubChild foobar",
+                    }
+                },
+                Counter = 3,
+            };
+
+            dbContext.ParentComplexJsons.Upsert(newParent)
+                .On(p => p.ID)
+                .Run();
+
+            dbContext.ParentComplexJsons.OrderBy(p => p.ID).Should().SatisfyRespectively(
+                parent =>
+                {
+                    parent.ID.Should().Be(newParent.ID);
+                    parent.Child?.ChildName.Should().Be(newParent.Child.ChildName);
+                    parent.Child?.SubChild?.SubChildName.Should().Be(newParent.Child.SubChild.SubChildName);
+                    parent.Counter.Should().Be(newParent.Counter);
+                    parent.Counter.Should().Be(3);
+                });
+        }
+
+        [Fact]
+        public virtual void Upsert_Complex_Property_WhenMatched_Complex_Direct_Mapping_With_Json()
+        {
+            Assert.SkipWhen(_fixture.DbDriver is DbDriver.InMemory, "db doesn't support sql complex properties");
+
+            ResetDb();
+            using var dbContext = new TestDbContext(_fixture.DataContextOptions);
+
+            var newParent = new ParentComplexJson
+            {
+                ID = 1,
+                Child = new Child
+                {
+                    ChildName = "Someone else",
+                    Age = 10,
+                    SubChild = new SubChild
+                    {
+                        SubChildName = "SubChild foobar",
+                        Age = 10,
+                    }
+                },
+            };
+
+            dbContext.ParentComplexJsons.Upsert(newParent)
+                .On(p => p.ID)
+                .WhenMatched((a, b) => new ParentComplexJson
+                {
+                    Counter = b.Counter + 1,
+                    Child = b.Child, // complex direct mapping - should expand to all columns including sub nested.
+                })
+                .Run();
+
+            dbContext.ParentComplexJsons.OrderBy(p => p.ID).Should().SatisfyRespectively(
+                parent =>
+                {
+                    parent.ID.Should().Be(newParent.ID);
+                    // child props are updated:
+                    parent.Child?.ChildName.Should().Be(newParent.Child.ChildName);
+                    parent.Child?.Age.Should().Be(newParent.Child.Age);
+                    // nested child props are updated:
+                    parent.Child?.SubChild?.SubChildName.Should().Be(newParent.Child.SubChild.SubChildName);
+                    parent.Child?.SubChild?.Age.Should().Be(newParent.Child.SubChild.Age);
+                    // nested child props now differ form default:
+                    parent.Child?.SubChild?.SubChildName.Should().NotBe(_dbParent.Child.SubChild.SubChildName);
+                    parent.Child?.SubChild?.Age.Should().NotBe(_dbParent.Child.SubChild.Age);
+                    parent.Counter.Should().Be(1);
+                });
+        }
+
+        [Fact]
+        public virtual void Upsert_Complex_Property_WhenMatched_Nested_Complex_Direct_Mapping_With_Json()
+        {
+            Assert.SkipWhen(_fixture.DbDriver is DbDriver.InMemory, "db doesn't support sql complex properties");
+
+            ResetDb();
+            using var dbContext = new TestDbContext(_fixture.DataContextOptions);
+
+            var newParent = new ParentComplexJson
+            {
+                ID = 1,
+                Child = new Child
+                {
+                    ChildName = "Someone else",
+                    Age = 10,
+                    SubChild = new SubChild
+                    {
+                        SubChildName = "SubChild foobar",
+                        Age = 10,
+                    }
+                },
+            };
+
+            dbContext.ParentComplexJsons.Upsert(newParent)
+                .On(p => p.ID)
+                .WhenMatched((a, b) => new ParentComplexJson
+                {
+                    Counter = b.Counter + 1,
+                    Child = new Child
+                    {
+                        SubChild = b.Child.SubChild, // nested complex direct mapping - should expand to all columns.
+                    }
+                })
+                .Run();
+
+            dbContext.ParentComplexJsons.OrderBy(p => p.ID).Should().SatisfyRespectively(
+                parent =>
+                {
+                    parent.ID.Should().Be(newParent.ID);
+                    // child props are NOT updated:
+                    parent.Child?.ChildName.Should().Be(_dbParent.Child.ChildName);
+                    parent.Child?.Age.Should().Be(_dbParent.Child.Age);
+                    // nested child props are updated:
+                    parent.Child?.SubChild?.SubChildName.Should().Be(newParent.Child.SubChild.SubChildName);
+                    parent.Child?.SubChild?.Age.Should().Be(newParent.Child.SubChild.Age);
+                    // nested child props now differ form default:
+                    parent.Child?.SubChild?.SubChildName.Should().NotBe(_dbParent.Child.SubChild.SubChildName);
+                    parent.Child?.SubChild?.Age.Should().NotBe(_dbParent.Child.SubChild.Age);
+                    parent.Counter.Should().Be(1);
+                });
+        }
+
+        [Fact]
+        public virtual void Upsert_Complex_Property_WhenMatched_Complex_Partial_Mapping_With_Json()
+        {
+            Assert.SkipWhen(_fixture.DbDriver is DbDriver.InMemory, "db doesn't support sql complex properties");
+
+            ResetDb();
+            using var dbContext = new TestDbContext(_fixture.DataContextOptions);
+
+            var newParent = new ParentComplexJson
+            {
+                ID = 1,
+                Child = new Child
+                {
+                    ChildName = "Someone else",
+                    Age = 10,
+                    SubChild = new SubChild
+                    {
+                        SubChildName = "SubChild foobar",
+                        Age = 10,
+                    }
+                },
+            };
+
+            dbContext.ParentComplexJsons.Upsert(newParent)
+                .On(p => p.ID)
+                .WhenMatched((a, b) => new ParentComplexJson
+                {
+                    Counter = b.Counter + 1,
+                    Child = new Child
+                    {
+                        ChildName = b.Child.ChildName,
+                        SubChild = new SubChild
+                        {
+                            Age = b.Child.SubChild.Age,
+                        },
+                    }
+                })
+                .Run();
+
+            dbContext.ParentComplexJsons.OrderBy(p => p.ID).Should().SatisfyRespectively(
+                parent =>
+                {
+                    parent.ID.Should().Be(newParent.ID);
+                    // child props: only name is updated:
+                    parent.Child?.ChildName.Should().Be(newParent.Child.ChildName);
+                    parent.Child?.Age.Should().Be(_dbParent.Child.Age);
+                    // nested child props: only age is updated:
+                    parent.Child?.SubChild?.SubChildName.Should().Be(_dbParent.Child.SubChild.SubChildName);
+                    parent.Child?.SubChild?.Age.Should().Be(newParent.Child.SubChild.Age);
+                    // nested child age now differ form default:
+                    parent.Child?.SubChild?.Age.Should().NotBe(_dbParent.Child.SubChild.Age);
+                    parent.Counter.Should().Be(1);
+                });
+        }
+
+        [Fact]
+        public virtual void Upsert_Complex_Property_NoUpdate_With_Json()
+        {
+            Assert.SkipWhen(_fixture.DbDriver is DbDriver.InMemory, "db doesn't support sql complex properties");
+
+            ResetDb();
+            using var dbContext = new TestDbContext(_fixture.DataContextOptions);
+
+            var newParent = new ParentComplexJson
+            {
+                ID = 1,
+                Child = new Child
+                {
+                    ChildName = "Someone else",
+                    SubChild = new SubChild
+                    {
+                        SubChildName = "SubChild foobar",
+                    }
+                },
+                Counter = 3,
+            };
+
+            dbContext.ParentComplexJsons.Upsert(newParent)
+                .On(p => p.ID)
+                .NoUpdate()
+                .Run();
+
+            dbContext.ParentComplexJsons.OrderBy(p => p.ID).Should().SatisfyRespectively(
                 parent =>
                 {
                     parent.ID.Should().Be(newParent.ID);

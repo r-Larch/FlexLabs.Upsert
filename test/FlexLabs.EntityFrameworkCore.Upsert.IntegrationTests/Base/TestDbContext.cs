@@ -72,6 +72,7 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.IntegrationTests.Base
             {
                 // in-memory provider does not support complex properties
                 modelBuilder.Entity<ParentComplex>().Ignore(c => c.Child);
+                modelBuilder.Entity<ParentComplexJson>().Ignore(c => c.Child);
                 modelBuilder.Entity<CompanyComplexJson>().Ignore(_ => _.Meta);
             }
             else
@@ -80,6 +81,11 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.IntegrationTests.Base
                     .ComplexProperty(
                         c => c.Child,
                         b => b.ComplexProperty(c => c.SubChild));
+
+                modelBuilder.Entity<ParentComplexJson>()
+                    .ComplexProperty(
+                        c => c.Child,
+                        b => b.ComplexProperty(c => c.SubChild, _ => _.ToJson()));
 
                 modelBuilder.Entity<CompanyComplexJson>()
                     .ComplexProperty(j => j.Meta, b => b.ToJson());
@@ -129,6 +135,7 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.IntegrationTests.Base
         public DbSet<ComputedColumn> ComputedColumns { get; set; }
         public DbSet<Parent> Parents { get; set; }
         public DbSet<ParentComplex> ParentComplexes { get; set; }
+        public DbSet<ParentComplexJson> ParentComplexJsons { get; set; }
         public DbSet<CompanyOwnedJson> CompanyOwnedJson { get; set; }
         public DbSet<CompanyComplexJson> CompanyComplexJson { get; set; }
     }

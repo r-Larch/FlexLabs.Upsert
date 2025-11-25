@@ -176,7 +176,21 @@ namespace FlexLabs.EntityFrameworkCore.Upsert.IntegrationTests.Base
         public int Num3 { get; set; }
     }
 
+    /// <summary>
+    /// Child and SubChild are mapped as complex columns
+    /// </summary>
     public class ParentComplex
+    {
+        [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
+        public int ID { get; set; }
+        public Child Child { get; set; }
+        public int Counter { get; set; }
+    }
+
+    /// <summary>
+    /// SubChild is mapped as JSON column in the complex column Child
+    /// </summary>
+    public class ParentComplexJson
     {
         [Key, DatabaseGenerated(DatabaseGeneratedOption.None)]
         public int ID { get; set; }
